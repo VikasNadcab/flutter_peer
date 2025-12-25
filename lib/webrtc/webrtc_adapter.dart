@@ -25,11 +25,17 @@ abstract class PeerConnection {
   /// Set remote SDP
   Future<void> setRemoteDescription(SessionDescription description);
 
+  /// Add local media stream
+  Future<void> addStream(MediaStream stream);
+
   /// Add ICE candidate
   Future<void> addIceCandidate(IceCandidate candidate);
 
   /// Close connection
   Future<void> close();
+
+  /// Get current signaling state
+  Future<SignalingState> getSignalingState();
 
   /// Connection state stream
   Stream<PeerConnectionState> get onConnectionState;
@@ -81,11 +87,7 @@ class IceServer {
   final String? username;
   final String? credential;
 
-  const IceServer({
-    required this.urls,
-    this.username,
-    this.credential,
-  });
+  const IceServer({required this.urls, this.username, this.credential});
 }
 
 /// SDP description
@@ -93,17 +95,11 @@ class SessionDescription {
   final String sdp;
   final SdpType type;
 
-  const SessionDescription({
-    required this.sdp,
-    required this.type,
-  });
+  const SessionDescription({required this.sdp, required this.type});
 }
 
 /// SDP type
-enum SdpType {
-  offer,
-  answer,
-}
+enum SdpType { offer, answer }
 
 /// ICE candidate
 class IceCandidate {
@@ -128,9 +124,22 @@ enum PeerConnectionState {
   closed,
 }
 
+/// Signaling state
+enum SignalingState {
+  stable,
+  haveLocalOffer,
+  haveRemoteOffer,
+  haveLocalPranswer,
+  haveRemotePranswer,
+  closed,
+}
+
 /// Media stream
 abstract class MediaStream {
   String get id;
+
+  /// Underlying native stream (e.g. RTCVideoRenderer.srcObject)
+  dynamic get srcObject;
 
   List<MediaTrack> getTracks();
 
@@ -153,10 +162,7 @@ class MediaConstraints {
   final bool audio;
   final bool video;
 
-  const MediaConstraints({
-    this.audio = true,
-    this.video = true,
-  });
+  const MediaConstraints({this.audio = true, this.video = true});
 }
 
 /// Data channel
@@ -190,9 +196,7 @@ class DataChannelInit {
 }
 
 /// Data channel state
-enum DataChannelState {
-  connecting,
-  open,
-  closing,
-  closed,
-}
+enum DataChannelState { connecting, open, closing, closed }
+
+/// Video view object fit
+enum PeerVideoViewObjectFit { contain, cover }

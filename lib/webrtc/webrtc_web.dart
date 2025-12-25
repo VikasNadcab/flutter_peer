@@ -20,6 +20,7 @@ class WebWebRtcAdapter implements WebRtcAdapter {
             },
           )
           .toList(),
+      'sdpSemantics': 'unified-plan',
     };
 
     final pc = await rtc.createPeerConnection(configuration);
@@ -89,26 +90,45 @@ class WebPeerConnection implements PeerConnection {
 
   WebPeerConnection(this.rtcConnection) {
     rtcConnection.onConnectionState = (state) {
-      _connectionStateController.add(_mapConnectionState(state));
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(_mapConnectionState(state));
+      }
     };
 
     rtcConnection.onIceCandidate = (candidate) {
-      _iceCandidateController.add(
-        IceCandidate(
-          candidate: candidate.candidate ?? '',
-          sdpMid: candidate.sdpMid,
-          sdpMLineIndex: candidate.sdpMLineIndex,
-        ),
-      );
+      if (!_iceCandidateController.isClosed) {
+        _iceCandidateController.add(
+          IceCandidate(
+            candidate: candidate.candidate ?? '',
+            sdpMid: candidate.sdpMid,
+            sdpMLineIndex: candidate.sdpMLineIndex,
+          ),
+        );
+      }
     };
 
     rtcConnection.onDataChannel = (dc) {
-      _dataChannelController.add(WebDataChannel(dc));
+      if (!_dataChannelController.isClosed) {
+        _dataChannelController.add(WebDataChannel(dc));
+      }
     };
 
-    rtcConnection.onTrack = (track) {
+    rtcConnection.onTrack = (rtc.RTCTrackEvent track) async {
+      print(
+        'onTrack (web): ${track.track.kind} with ${track.streams.length} streams',
+      );
+      if (_trackController.isClosed) return;
+
       if (track.streams.isNotEmpty) {
         _trackController.add(WebMediaStream(track.streams[0]));
+      } else {
+        final stream = await rtc.createLocalMediaStream(
+          'remote_stream_${track.track.id}',
+        );
+        await stream.addTrack(track.track);
+        if (!_trackController.isClosed) {
+          _trackController.add(WebMediaStream(stream));
+        }
       }
     };
   }
@@ -140,6 +160,17 @@ class WebPeerConnection implements PeerConnection {
   }
 
   @override
+  Future<void> addStream(MediaStream stream) async {
+    if (stream is WebMediaStream) {
+      for (var track in stream.getTracks()) {
+        if (track is WebMediaTrack) {
+          await rtcConnection.addTrack(track.rtcTrack, stream.rtcStream);
+        }
+      }
+    }
+  }
+
+  @override
   Future<void> addIceCandidate(IceCandidate candidate) async {
     await rtcConnection.addCandidate(
       rtc.RTCIceCandidate(
@@ -157,6 +188,31 @@ class WebPeerConnection implements PeerConnection {
     await _iceCandidateController.close();
     await _dataChannelController.close();
     await _trackController.close();
+  }
+
+  @override
+  Future<SignalingState> getSignalingState() async {
+    final state = await rtcConnection.getSignalingState();
+    return _mapSignalingState(
+      state ?? rtc.RTCSignalingState.RTCSignalingStateClosed,
+    );
+  }
+
+  SignalingState _mapSignalingState(rtc.RTCSignalingState state) {
+    switch (state) {
+      case rtc.RTCSignalingState.RTCSignalingStateStable:
+        return SignalingState.stable;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveLocalOffer:
+        return SignalingState.haveLocalOffer;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
+        return SignalingState.haveRemoteOffer;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
+        return SignalingState.haveLocalPranswer;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
+        return SignalingState.haveRemotePranswer;
+      case rtc.RTCSignalingState.RTCSignalingStateClosed:
+        return SignalingState.closed;
+    }
   }
 
   @override
@@ -198,10 +254,14 @@ class WebDataChannel implements DataChannel {
 
   WebDataChannel(this._dc) {
     _dc.onMessage = (message) {
-      _messageController.add(message.text);
+      if (!_messageController.isClosed) {
+        _messageController.add(message.text);
+      }
     };
     _dc.onDataChannelState = (state) {
-      _stateController.add(_mapState(state));
+      if (!_stateController.isClosed) {
+        _stateController.add(_mapState(state));
+      }
     };
   }
 
@@ -247,6 +307,11 @@ class WebMediaStream implements MediaStream {
 
   WebMediaStream(this._stream);
 
+  rtc.MediaStream get rtcStream => _stream;
+
+  @override
+  rtc.MediaStream get srcObject => _stream;
+
   @override
   String get id => _stream.id;
 
@@ -265,6 +330,8 @@ class WebMediaTrack implements MediaTrack {
   final rtc.MediaStreamTrack _track;
 
   WebMediaTrack(this._track);
+
+  rtc.MediaStreamTrack get rtcTrack => _track;
 
   @override
   String get id => _track.id ?? '';

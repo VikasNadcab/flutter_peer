@@ -5,3 +5,4 @@ export 'webrtc/webrtc_adapter.dart';
 export 'connection/data_connection.dart';
 export 'connection/media_connection.dart';
 export 'signaling/signaling_protocol.dart';
+export 'widgets/peer_video_view.dart';

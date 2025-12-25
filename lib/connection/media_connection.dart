@@ -6,6 +6,7 @@ import '../signaling/signaling_protocol.dart';
 class MediaConnection extends BaseConnection {
   final MediaStream? localStream;
   MediaStream? remoteStream;
+  final List<dynamic> _pendingCandidates = [];
 
   MediaConnection({
     required super.peerId,
@@ -26,6 +27,7 @@ class MediaConnection extends BaseConnection {
     );
 
     pc!.onIceCandidate.listen((candidate) {
+      print('Sending ICE candidate to ${peerId}');
       sendSignal(SignalingMessageType.candidate, {
         'candidate': candidate.candidate,
         'sdpMid': candidate.sdpMid,
@@ -34,6 +36,7 @@ class MediaConnection extends BaseConnection {
     });
 
     pc!.onTrack.listen((stream) {
+      print('Received remote stream from ${peerId}');
       remoteStream = stream;
       isOpen = true;
       emit('stream', this, stream);
@@ -41,15 +44,35 @@ class MediaConnection extends BaseConnection {
 
     // Add local stream if present
     if (localStream != null) {
-      // NOTE: Adapter should support adding tracks/streams to PC
-      // For now, we assume provide this via PC directly or wrapper
-      // Base logic:
-      // pc.addStream(localStream);
+      await pc!.addStream(localStream!);
     }
   }
 
   Future<void> answer(MediaStream stream) async {
-    // Implement answer logic with local stream
+    if (pc == null) await initialize();
+    await pc!.addStream(stream);
+
+    final answer = await pc!.createAnswer();
+    await pc!.setLocalDescription(answer);
+
+    sendSignal(SignalingMessageType.answer, {
+      'sdp': answer.sdp,
+      'type': answer.type.name,
+    });
+  }
+
+  Future<void> call() async {
+    isOfferer = true;
+    if (pc == null) await initialize();
+
+    final offer = await pc!.createOffer();
+    await pc!.setLocalDescription(offer);
+
+    sendSignal(SignalingMessageType.offer, {
+      'sdp': offer.sdp,
+      'type': offer.type.name,
+      'connectionType': 'media',
+    });
   }
 
   @override
@@ -58,26 +81,61 @@ class MediaConnection extends BaseConnection {
 
     switch (message.type) {
       case SignalingMessageType.offer:
+        if (isOfferer ||
+            (pc != null &&
+                (await pc!.getSignalingState()) != SignalingState.stable)) {
+          return;
+        }
         if (pc == null) await initialize();
         await pc!.setRemoteDescription(
           SessionDescription(sdp: payload['sdp'], type: SdpType.offer),
         );
-        // User must call .answer() to send back their stream/SDP
+        hasRemoteDescription = true;
+
+        // Process pending candidates
+        for (var cand in _pendingCandidates) {
+          await pc!.addIceCandidate(
+            IceCandidate(
+              candidate: cand['candidate'],
+              sdpMid: cand['sdpMid'],
+              sdpMLineIndex: cand['sdpMLineIndex'],
+            ),
+          );
+        }
+        _pendingCandidates.clear();
+
         emit('call', this);
         break;
       case SignalingMessageType.answer:
         await pc!.setRemoteDescription(
           SessionDescription(sdp: payload['sdp'], type: SdpType.answer),
         );
+        hasRemoteDescription = true;
+
+        // Process pending candidates
+        for (var cand in _pendingCandidates) {
+          await pc!.addIceCandidate(
+            IceCandidate(
+              candidate: cand['candidate'],
+              sdpMid: cand['sdpMid'],
+              sdpMLineIndex: cand['sdpMLineIndex'],
+            ),
+          );
+        }
+        _pendingCandidates.clear();
         break;
       case SignalingMessageType.candidate:
-        await pc!.addIceCandidate(
-          IceCandidate(
-            candidate: payload['candidate'],
-            sdpMid: payload['sdpMid'],
-            sdpMLineIndex: payload['sdpMLineIndex'],
-          ),
-        );
+        if (!hasRemoteDescription || pc == null) {
+          _pendingCandidates.add(payload);
+        } else {
+          await pc!.addIceCandidate(
+            IceCandidate(
+              candidate: payload['candidate'],
+              sdpMid: payload['sdpMid'],
+              sdpMLineIndex: payload['sdpMLineIndex'],
+            ),
+          );
+        }
         break;
       default:
         break;

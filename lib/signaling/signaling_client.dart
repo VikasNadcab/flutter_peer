@@ -31,14 +31,24 @@ class SignalingClient extends EventEmitter {
     final protocol = secure ? 'wss' : 'ws';
     final randomToken = _generateToken();
 
-    // PeerJS signaling URL format: ws://host:port/path/peerjs?key=...&id=...&token=...
+    final portPart = (secure && port == 443) || (!secure && port == 80)
+        ? ''
+        : ':$port';
+    final normalizedPath = path.endsWith('/') ? path : '$path/';
+
     final url = Uri.parse(
-      '$protocol://$host:$port$path'
-      'peerjs?key=$key&id=${id ?? ""}&token=$randomToken',
+      '$protocol://$host$portPart${normalizedPath}peerjs?key=$key&id=${id ?? ""}&token=$randomToken',
     );
 
-    _channel = WebSocketChannel.connect(url);
-    _connected = true;
+    print('Signaling connecting to: $url');
+    try {
+      _channel = WebSocketChannel.connect(url);
+      _connected = true;
+    } catch (e) {
+      _connected = false;
+      emit('error', this, 'Could not connect to signaling server: $e');
+      return;
+    }
 
     _subscription = _channel!.stream.listen(
       (data) {

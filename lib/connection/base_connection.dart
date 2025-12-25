@@ -12,6 +12,8 @@ abstract class BaseConnection extends EventEmitter {
 
   PeerConnection? pc;
   bool isOpen = false;
+  bool isOfferer = false;
+  bool hasRemoteDescription = false;
 
   BaseConnection({
     required this.peerId,

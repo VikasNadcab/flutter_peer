@@ -54,6 +54,7 @@ class DataConnection extends BaseConnection {
       label: label,
       options: options,
     );
+    isOfferer = true;
     _setupDataChannel(_dc!);
 
     final offer = await pc!.createOffer();
@@ -61,6 +62,7 @@ class DataConnection extends BaseConnection {
     sendSignal(SignalingMessageType.offer, {
       'sdp': offer.sdp,
       'type': offer.type.name,
+      'connectionType': 'data',
     });
   }
 
@@ -91,6 +93,12 @@ class DataConnection extends BaseConnection {
 
     switch (message.type) {
       case SignalingMessageType.offer:
+        if (isOfferer ||
+            pc != null &&
+                (await pc!.getSignalingState()) != SignalingState.stable) {
+          print("Ignoring redundant offer or offer during active negotiation.");
+          return;
+        }
         if (pc == null) await initialize();
         await pc!.setRemoteDescription(
           SessionDescription(sdp: payload['sdp'], type: SdpType.offer),

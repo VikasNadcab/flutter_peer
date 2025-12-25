@@ -17,6 +17,7 @@ class MobileWebRtcAdapter implements WebRtcAdapter {
             },
           )
           .toList(),
+      'sdpSemantics': 'unified-plan',
     };
 
     final pc = await rtc.createPeerConnection(configuration);
@@ -86,28 +87,46 @@ class MobilePeerConnection implements PeerConnection {
 
   MobilePeerConnection(this.rtcConnection) {
     rtcConnection.onConnectionState = (state) {
-      _connectionStateController.add(_mapConnectionState(state));
+      if (!_connectionStateController.isClosed) {
+        _connectionStateController.add(_mapConnectionState(state));
+      }
     };
 
     rtcConnection.onIceCandidate = (candidate) {
-      _iceCandidateController.add(
-        IceCandidate(
-          candidate: candidate.candidate ?? '',
-          sdpMid: candidate.sdpMid,
-          sdpMLineIndex: candidate.sdpMLineIndex,
-        ),
-      );
+      if (!_iceCandidateController.isClosed) {
+        _iceCandidateController.add(
+          IceCandidate(
+            candidate: candidate.candidate ?? '',
+            sdpMid: candidate.sdpMid,
+            sdpMLineIndex: candidate.sdpMLineIndex,
+          ),
+        );
+      }
     };
 
     rtcConnection.onDataChannel = (dc) {
-      _dataChannelController.add(MobileDataChannel(dc));
+      if (!_dataChannelController.isClosed) {
+        _dataChannelController.add(MobileDataChannel(dc));
+      }
     };
 
-    rtcConnection.onTrack = (track) {
-      // NOTE: Mobile handles tracks differently, often wrapping them in streams
-      // For simplicity in this adapter, we might need to adjust based on how tracks are received.
+    rtcConnection.onTrack = (rtc.RTCTrackEvent track) async {
+      print(
+        'onTrack: ${track.track.kind} with ${track.streams.length} streams',
+      );
+      if (_trackController.isClosed) return;
+
       if (track.streams.isNotEmpty) {
         _trackController.add(MobileMediaStream(track.streams[0]));
+      } else {
+        // Create a fake stream if none provide (Unified Plan track-only mode)
+        final stream = await rtc.createLocalMediaStream(
+          'remote_stream_${track.track.id}',
+        );
+        await stream.addTrack(track.track);
+        if (!_trackController.isClosed) {
+          _trackController.add(MobileMediaStream(stream));
+        }
       }
     };
   }
@@ -139,6 +158,17 @@ class MobilePeerConnection implements PeerConnection {
   }
 
   @override
+  Future<void> addStream(MediaStream stream) async {
+    if (stream is MobileMediaStream) {
+      for (var track in stream.getTracks()) {
+        if (track is MobileMediaTrack) {
+          await rtcConnection.addTrack(track.rtcTrack, stream.rtcStream);
+        }
+      }
+    }
+  }
+
+  @override
   Future<void> addIceCandidate(IceCandidate candidate) async {
     await rtcConnection.addCandidate(
       rtc.RTCIceCandidate(
@@ -156,6 +186,31 @@ class MobilePeerConnection implements PeerConnection {
     await _iceCandidateController.close();
     await _dataChannelController.close();
     await _trackController.close();
+  }
+
+  @override
+  Future<SignalingState> getSignalingState() async {
+    final state = await rtcConnection.getSignalingState();
+    return _mapSignalingState(
+      state ?? rtc.RTCSignalingState.RTCSignalingStateClosed,
+    );
+  }
+
+  SignalingState _mapSignalingState(rtc.RTCSignalingState state) {
+    switch (state) {
+      case rtc.RTCSignalingState.RTCSignalingStateStable:
+        return SignalingState.stable;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveLocalOffer:
+        return SignalingState.haveLocalOffer;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveRemoteOffer:
+        return SignalingState.haveRemoteOffer;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveLocalPrAnswer:
+        return SignalingState.haveLocalPranswer;
+      case rtc.RTCSignalingState.RTCSignalingStateHaveRemotePrAnswer:
+        return SignalingState.haveRemotePranswer;
+      case rtc.RTCSignalingState.RTCSignalingStateClosed:
+        return SignalingState.closed;
+    }
   }
 
   @override
@@ -196,10 +251,14 @@ class MobileDataChannel implements DataChannel {
 
   MobileDataChannel(this._dc) {
     _dc.onMessage = (message) {
-      _messageController.add(message.text);
+      if (!_messageController.isClosed) {
+        _messageController.add(message.text);
+      }
     };
     _dc.onDataChannelState = (state) {
-      _stateController.add(_mapState(state));
+      if (!_stateController.isClosed) {
+        _stateController.add(_mapState(state));
+      }
     };
   }
 
@@ -245,6 +304,11 @@ class MobileMediaStream implements MediaStream {
 
   MobileMediaStream(this._stream);
 
+  rtc.MediaStream get rtcStream => _stream;
+
+  @override
+  rtc.MediaStream get srcObject => _stream;
+
   @override
   String get id => _stream.id;
 
@@ -263,6 +327,8 @@ class MobileMediaTrack implements MediaTrack {
   final rtc.MediaStreamTrack _track;
 
   MobileMediaTrack(this._track);
+
+  rtc.MediaStreamTrack get rtcTrack => _track;
 
   @override
   String get id => _track.id ?? '';
