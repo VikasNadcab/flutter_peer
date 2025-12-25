@@ -25,12 +25,11 @@ class _VideochatState extends State<Videochat> {
     final id = Uuid().v4();
     peer = Peer(id: id);
 
-    peer.on('open', null, (ev, context) {
+    peer.onOpen((id) {
       if (mounted) setState(() => myId = id);
     });
 
-    peer.on('call', null, (ev, context) {
-      final call = ev.eventData as MediaConnection;
+    peer.onCall((call) {
       _handleIncomingCall(call);
     });
   }
@@ -38,8 +37,8 @@ class _VideochatState extends State<Videochat> {
   void _setupCall(MediaConnection call) {
     setState(() => activeCall = call);
 
-    call.on('stream', null, (ev, context) => setState(() {}));
-    call.on('close', null, (ev, context) => setState(() => activeCall = null));
+    call.onStream((stream) => setState(() {}));
+    call.onClose(() => setState(() => activeCall = null));
   }
 
   Future<void> _handleIncomingCall(MediaConnection call) async {

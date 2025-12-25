@@ -17,6 +17,13 @@ class DataConnection extends BaseConnection {
     this.options,
   });
 
+  /// Listen for incoming data.
+  void onData(void Function(dynamic data) callback) {
+    on(ConnectionEvent.data.name, null, (ev, context) {
+      callback(ev.eventData);
+    });
+  }
+
   @override
   Future<void> initialize() async {
     pc = await adapter.createPeerConnection(

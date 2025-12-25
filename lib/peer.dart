@@ -11,6 +11,8 @@ import 'connection/data_connection.dart';
 import 'connection/media_connection.dart';
 import 'connection/base_connection.dart';
 
+enum PeerEvent { open, connection, call, close, disconnected, error }
+
 class Peer extends EventEmitter {
   final SignalingClient _signaling;
   final WebRtcAdapter _adapter;
@@ -38,6 +40,41 @@ class Peer extends EventEmitter {
   }
 
   String? get id => _signaling.id;
+
+  /// Listen for when the peer is open and connected to the signaling server.
+  void onOpen(void Function(String id) callback) {
+    on(PeerEvent.open.name, null, (ev, context) {
+      callback(ev.eventData as String);
+    });
+  }
+
+  /// Listen for incoming data connections.
+  void onConnection(void Function(DataConnection conn) callback) {
+    on(PeerEvent.connection.name, null, (ev, context) {
+      callback(ev.eventData as DataConnection);
+    });
+  }
+
+  /// Listen for incoming media calls.
+  void onCall(void Function(MediaConnection call) callback) {
+    on(PeerEvent.call.name, null, (ev, context) {
+      callback(ev.eventData as MediaConnection);
+    });
+  }
+
+  /// Listen for errors.
+  void onError(void Function(dynamic error) callback) {
+    on(PeerEvent.error.name, null, (ev, context) {
+      callback(ev.eventData);
+    });
+  }
+
+  /// Listen for when the peer is closed.
+  void onClose(void Function() callback) {
+    on(PeerEvent.close.name, null, (ev, context) {
+      callback();
+    });
+  }
 
   void _setupSignaling(String? id) {
     _signaling.on('open', null, (ev, context) {

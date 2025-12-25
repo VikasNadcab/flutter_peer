@@ -16,6 +16,13 @@ class MediaConnection extends BaseConnection {
     this.localStream,
   });
 
+  /// Listen for incoming media streams.
+  void onStream(void Function(MediaStream stream) callback) {
+    on(ConnectionEvent.stream.name, null, (ev, context) {
+      callback(ev.eventData as MediaStream);
+    });
+  }
+
   @override
   Future<void> initialize() async {
     pc = await adapter.createPeerConnection(

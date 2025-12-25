@@ -27,24 +27,20 @@ class _TextChatState extends State<TextChat> {
     final id = Uuid().v4();
     peer = Peer(id: id);
 
-    peer.on('open', null, (ev, context) {
-      final getId = ev.eventData;
-      print("found ${ev.toString()} $getId");
+    peer.onOpen((id) {
+      print("found peer with id: $id");
       setState(() {
         myId = id;
       });
     });
 
-    peer.on('connection', null, (ev, context) {
-      final conn = ev.eventData;
-      print("found ${ev.sender} $conn");
-      if (conn is DataConnection) {
-        _setupConnection(conn);
-      }
+    peer.onConnection((conn) {
+      print("received connection from ${conn.peerId}");
+      _setupConnection(conn);
     });
 
-    peer.on('error', null, (ev, context) {
-      debugPrint('Peer error: ${ev.eventData}');
+    peer.onError((err) {
+      debugPrint('Peer error: $err');
     });
   }
 
@@ -53,20 +49,20 @@ class _TextChatState extends State<TextChat> {
       activeConn = conn;
     });
 
-    conn.on('open', null, (ev, context) {
-      print("connected ${ev} ");
+    conn.onOpen(() {
+      print("connection opened");
       setState(() {
         messages.add('Connected to ${conn.peerId}');
       });
     });
 
-    conn.on('data', null, (ev, context) {
+    conn.onData((data) {
       setState(() {
-        messages.add('${conn.peerId}: ${ev.eventData}');
+        messages.add('${conn.peerId}: $data');
       });
     });
 
-    conn.on('close', null, (ev, context) {
+    conn.onClose(() {
       setState(() {
         messages.add('Disconnected');
         activeConn = null;
