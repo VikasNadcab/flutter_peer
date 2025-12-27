@@ -57,8 +57,12 @@ class WebWebRtcAdapter implements WebRtcAdapter {
   @override
   Future<MediaStream> getUserMedia(MediaConstraints constraints) async {
     final mConstraints = {
-      'audio': constraints.audio,
-      'video': constraints.video,
+      'audio': constraints.audioInputId != null
+          ? {'deviceId': constraints.audioInputId}
+          : constraints.audio,
+      'video': constraints.videoInputId != null
+          ? {'deviceId': constraints.videoInputId}
+          : constraints.video,
     };
     final stream = await rtc.navigator.mediaDevices.getUserMedia(mConstraints);
     return WebMediaStream(stream);
@@ -74,6 +78,37 @@ class WebWebRtcAdapter implements WebRtcAdapter {
       mConstraints,
     );
     return WebMediaStream(stream);
+  }
+
+  @override
+  Future<void> switchCamera(MediaStream stream) async {
+    // Web doesn't have a simple switchCamera like Mobile Helper
+    // Usually you enumerate and then getUserMedia again with the new deviceId
+  }
+
+  @override
+  Future<List<MediaDeviceInfo>> enumerateDevices() async {
+    final devices = await rtc.navigator.mediaDevices.enumerateDevices();
+    return devices
+        .map(
+          (d) => MediaDeviceInfo(
+            deviceId: d.deviceId,
+            label: d.label,
+            kind: d.kind ?? '',
+            groupId: d.groupId ?? '',
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Future<void> setSpeakerphoneOn(bool enable) async {
+    // Not applicable on web usually
+  }
+
+  @override
+  Future<void> setAudioOutput(String deviceId) async {
+    // flutter_webrtc web implementation might support this via sinkId if available
   }
 
   @override
@@ -323,6 +358,20 @@ class WebMediaStream implements MediaStream {
   @override
   Future<void> dispose() async {
     await _stream.dispose();
+  }
+
+  @override
+  Future<void> toggleAudio(bool enabled) async {
+    _stream.getAudioTracks().forEach((track) {
+      track.enabled = enabled;
+    });
+  }
+
+  @override
+  Future<void> toggleVideo(bool enabled) async {
+    _stream.getVideoTracks().forEach((track) {
+      track.enabled = enabled;
+    });
   }
 }
 

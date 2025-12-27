@@ -49,7 +49,17 @@ class _PeerVideoViewState extends State<PeerVideoView> {
 
   void _updateStream() {
     if (!_initialized) return;
-    _renderer.srcObject = widget.stream?.srcObject;
+
+    final newSrcObject = widget.stream?.srcObject;
+    if (_renderer.srcObject != newSrcObject) {
+      _renderer.srcObject = newSrcObject;
+    } else if (newSrcObject != null) {
+      // Force a re-assignment or notify the renderer?
+      // In flutter_webrtc, assigning the same srcObject might be ignored.
+      // We'll set it to null and back if we detect we need a hard refresh,
+      // but usually the renderer should listen to track changes on the stream.
+      _renderer.srcObject = newSrcObject;
+    }
   }
 
   @override

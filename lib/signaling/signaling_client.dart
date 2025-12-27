@@ -28,6 +28,7 @@ class SignalingClient extends EventEmitter {
   bool get isConnected => _connected;
 
   Future<void> connect([String? id]) async {
+    _id = id;
     final protocol = secure ? 'wss' : 'ws';
     final randomToken = _generateToken();
 
@@ -52,9 +53,13 @@ class SignalingClient extends EventEmitter {
 
     _subscription = _channel!.stream.listen(
       (data) {
-        final Map<String, dynamic> json = jsonDecode(data);
-        final message = SignalingMessage.fromJson(json);
-        _handleMessage(message);
+        try {
+          final Map<String, dynamic> json = jsonDecode(data);
+          final message = SignalingMessage.fromJson(json);
+          _handleMessage(message);
+        } catch (e) {
+          print('Error parsing signaling message: $e');
+        }
       },
       onDone: () => _handleDisconnect(),
       onError: (err) => _handleError(err),
@@ -70,7 +75,9 @@ class SignalingClient extends EventEmitter {
   void _handleMessage(SignalingMessage message) {
     switch (message.type) {
       case SignalingMessageType.open:
-        _id = message.payload;
+        if (message.payload != null) {
+          _id = message.payload;
+        }
         emit('open', this, _id);
         break;
       case SignalingMessageType.error:
@@ -87,6 +94,7 @@ class SignalingClient extends EventEmitter {
       case SignalingMessageType.candidate:
       case SignalingMessageType.leave:
       case SignalingMessageType.expire:
+      case SignalingMessageType.mediaState:
         emit('message', this, message);
         break;
     }

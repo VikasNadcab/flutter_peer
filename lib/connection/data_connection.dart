@@ -15,6 +15,7 @@ class DataConnection extends BaseConnection {
     required super.connectionId,
     this.label = 'peerjs',
     this.options,
+    super.config,
   });
 
   /// Listen for incoming data.
@@ -27,11 +28,13 @@ class DataConnection extends BaseConnection {
   @override
   Future<void> initialize() async {
     pc = await adapter.createPeerConnection(
-      iceConfiguration: const IceConfiguration(
-        iceServers: [
-          IceServer(urls: ['stun:stun.l.google.com:19302']),
-        ],
-      ),
+      iceConfiguration:
+          config ??
+          const IceConfiguration(
+            iceServers: [
+              IceServer(urls: ['stun:stun4.l.google.com:19302']),
+            ],
+          ),
     );
 
     pc!.onIceCandidate.listen((candidate) {
@@ -94,8 +97,10 @@ class DataConnection extends BaseConnection {
     });
   }
 
+  final List<dynamic> _pendingCandidates = [];
+
   @override
-  void handleMessage(SignalingMessage message) async {
+  Future<void> handleMessage(SignalingMessage message) async {
     final payload = message.payload['payload'];
 
     switch (message.type) {
@@ -110,6 +115,20 @@ class DataConnection extends BaseConnection {
         await pc!.setRemoteDescription(
           SessionDescription(sdp: payload['sdp'], type: SdpType.offer),
         );
+        hasRemoteDescription = true;
+
+        // Process pending candidates
+        for (var cand in _pendingCandidates) {
+          await pc!.addIceCandidate(
+            IceCandidate(
+              candidate: cand['candidate'],
+              sdpMid: cand['sdpMid'],
+              sdpMLineIndex: cand['sdpMLineIndex'],
+            ),
+          );
+        }
+        _pendingCandidates.clear();
+
         final answer = await pc!.createAnswer();
         await pc!.setLocalDescription(answer);
         sendSignal(SignalingMessageType.answer, {
@@ -121,15 +140,32 @@ class DataConnection extends BaseConnection {
         await pc!.setRemoteDescription(
           SessionDescription(sdp: payload['sdp'], type: SdpType.answer),
         );
+        hasRemoteDescription = true;
+
+        // Process pending candidates
+        for (var cand in _pendingCandidates) {
+          await pc!.addIceCandidate(
+            IceCandidate(
+              candidate: cand['candidate'],
+              sdpMid: cand['sdpMid'],
+              sdpMLineIndex: cand['sdpMLineIndex'],
+            ),
+          );
+        }
+        _pendingCandidates.clear();
         break;
       case SignalingMessageType.candidate:
-        await pc!.addIceCandidate(
-          IceCandidate(
-            candidate: payload['candidate'],
-            sdpMid: payload['sdpMid'],
-            sdpMLineIndex: payload['sdpMLineIndex'],
-          ),
-        );
+        if (!hasRemoteDescription || pc == null) {
+          _pendingCandidates.add(payload);
+        } else {
+          await pc!.addIceCandidate(
+            IceCandidate(
+              candidate: payload['candidate'],
+              sdpMid: payload['sdpMid'],
+              sdpMLineIndex: payload['sdpMLineIndex'],
+            ),
+          );
+        }
         break;
       default:
         break;

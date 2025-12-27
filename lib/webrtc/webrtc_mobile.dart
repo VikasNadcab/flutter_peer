@@ -54,8 +54,12 @@ class MobileWebRtcAdapter implements WebRtcAdapter {
   @override
   Future<MediaStream> getUserMedia(MediaConstraints constraints) async {
     final mConstraints = {
-      'audio': constraints.audio,
-      'video': constraints.video,
+      'audio': constraints.audioInputId != null
+          ? {'deviceId': constraints.audioInputId}
+          : constraints.audio,
+      'video': constraints.videoInputId != null
+          ? {'deviceId': constraints.videoInputId, 'facingMode': 'user'}
+          : constraints.video,
     };
     final stream = await rtc.navigator.mediaDevices.getUserMedia(mConstraints);
     return MobileMediaStream(stream);
@@ -71,6 +75,43 @@ class MobileWebRtcAdapter implements WebRtcAdapter {
       mConstraints,
     );
     return MobileMediaStream(stream);
+  }
+
+  @override
+  Future<void> switchCamera(MediaStream stream) async {
+    if (stream is MobileMediaStream) {
+      final videoTrack = stream.rtcStream.getVideoTracks().firstOrNull;
+      if (videoTrack != null) {
+        await rtc.Helper.switchCamera(videoTrack);
+      }
+    }
+  }
+
+  @override
+  Future<List<MediaDeviceInfo>> enumerateDevices() async {
+    final devices = await rtc.navigator.mediaDevices.enumerateDevices();
+    return devices
+        .map(
+          (d) => MediaDeviceInfo(
+            deviceId: d.deviceId,
+            label: d.label,
+            kind: d.kind ?? '',
+            groupId: d.groupId ?? '',
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Future<void> setSpeakerphoneOn(bool enable) async {
+    await rtc.Helper.setSpeakerphoneOn(enable);
+  }
+
+  @override
+  Future<void> setAudioOutput(String deviceId) async {
+    // On mobile, we usually use setSpeakerphoneOn, but some platforms might support device selection
+    // flutter_webrtc doesn't have a direct setAudioOutput for mobile easily accessible via deviceId in Helper
+    // but we can try using the native implementation if available.
   }
 
   @override
@@ -320,6 +361,20 @@ class MobileMediaStream implements MediaStream {
   @override
   Future<void> dispose() async {
     await _stream.dispose();
+  }
+
+  @override
+  Future<void> toggleAudio(bool enabled) async {
+    _stream.getAudioTracks().forEach((track) {
+      track.enabled = enabled;
+    });
+  }
+
+  @override
+  Future<void> toggleVideo(bool enabled) async {
+    _stream.getVideoTracks().forEach((track) {
+      track.enabled = enabled;
+    });
   }
 }
 

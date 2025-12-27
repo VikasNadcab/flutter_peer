@@ -4,13 +4,14 @@ import '../webrtc/webrtc_adapter.dart';
 import '../signaling/signaling_client.dart';
 import '../signaling/signaling_protocol.dart';
 
-enum ConnectionEvent { open, close, error, data, stream }
+enum ConnectionEvent { open, close, error, data, stream, mediaState }
 
 abstract class BaseConnection extends EventEmitter {
   final String peerId;
   final SignalingClient signalingClient;
   final WebRtcAdapter adapter;
   final String connectionId;
+  final IceConfiguration? config;
 
   PeerConnection? pc;
   bool isOpen = false;
@@ -22,6 +23,7 @@ abstract class BaseConnection extends EventEmitter {
     required this.signalingClient,
     required this.adapter,
     required this.connectionId,
+    this.config,
   });
 
   bool get isConnected => isOpen;
@@ -48,7 +50,7 @@ abstract class BaseConnection extends EventEmitter {
   }
 
   Future<void> initialize();
-  void handleMessage(SignalingMessage message);
+  Future<void> handleMessage(SignalingMessage message);
   void close();
 
   void sendSignal(SignalingMessageType type, dynamic payload) {

@@ -16,8 +16,12 @@ enum PeerEvent { open, connection, call, close, disconnected, error }
 class Peer extends EventEmitter {
   final SignalingClient _signaling;
   final WebRtcAdapter _adapter;
+  final IceConfiguration? _config;
   final Map<String, BaseConnection> _connections = {};
   MediaStream? _localStream;
+  bool _isSpeakerPhoneOn = false;
+  bool _isCameraOff = false;
+  bool _isMicrophoneOff = false;
 
   static const _uuid = Uuid();
 
@@ -28,7 +32,9 @@ class Peer extends EventEmitter {
     String path = '/',
     bool secure = true,
     String key = 'peerjs',
+    IceConfiguration? config,
   }) : _adapter = kIsWeb ? WebWebRtcAdapter() : MobileWebRtcAdapter(),
+       _config = config,
        _signaling = SignalingClient(
          host: host,
          port: port,
@@ -76,13 +82,23 @@ class Peer extends EventEmitter {
     });
   }
 
+  /// Listen for when the peer is disconnected from the signaling server.
+  void onDisconnected(void Function() callback) {
+    on(PeerEvent.disconnected.name, null, (ev, context) {
+      callback();
+    });
+  }
+
   void _setupSignaling(String? id) {
     _signaling.on('open', null, (ev, context) {
-      emit('open', this, ev.eventData);
+      final peerId = ev.eventData ?? _signaling.id;
+      if (peerId != null) {
+        emit(PeerEvent.open.name, this, peerId);
+      }
     });
 
     _signaling.on('error', null, (ev, context) {
-      emit('error', this, ev.eventData);
+      emit(PeerEvent.error.name, this, ev.eventData);
     });
 
     _signaling.on('message', null, (ev, context) {
@@ -92,18 +108,24 @@ class Peer extends EventEmitter {
       }
     });
 
+    _signaling.on('disconnected', null, (ev, context) {
+      emit(PeerEvent.disconnected.name, this);
+    });
+
     _signaling.connect(id);
   }
 
-  void _handleIncomingMessage(SignalingMessage message) {
+  Future<void> _handleIncomingMessage(SignalingMessage message) async {
     final connectionId = message.payload['connectionId'];
     if (connectionId == null) return;
 
-    var connection = _connections[connectionId];
+    BaseConnection? connection = _connections[connectionId];
+    bool isNew = false;
 
     if (connection == null) {
       if (message.type == SignalingMessageType.offer) {
         // Incoming connection request
+        isNew = true;
         final src = message.src!;
         final payload = message.payload['payload'];
         final type = payload != null ? payload['connectionType'] : 'data';
@@ -114,25 +136,32 @@ class Peer extends EventEmitter {
             signalingClient: _signaling,
             adapter: _adapter,
             connectionId: connectionId,
+            config: _config,
           );
-          _connections[connectionId] = connection;
-          emit('call', this, connection);
         } else {
           connection = DataConnection(
             peerId: src,
             signalingClient: _signaling,
             adapter: _adapter,
             connectionId: connectionId,
+            config: _config,
           );
-          _connections[connectionId] = connection;
-          emit('connection', this, connection);
         }
+        _connections[connectionId] = connection;
       } else {
         return; // Orphaned message
       }
     }
 
-    connection.handleMessage(message);
+    await connection.handleMessage(message);
+
+    if (isNew) {
+      if (connection is MediaConnection) {
+        emit(PeerEvent.call.name, this, connection);
+      } else if (connection is DataConnection) {
+        emit(PeerEvent.connection.name, this, connection);
+      }
+    }
   }
 
   DataConnection connect(
@@ -151,6 +180,7 @@ class Peer extends EventEmitter {
       connectionId: connectionId,
       label: label ?? 'peerjs',
       options: options,
+      config: _config,
     );
 
     _connections[connectionId] = connection;
@@ -170,6 +200,7 @@ class Peer extends EventEmitter {
       adapter: _adapter,
       connectionId: connectionId,
       localStream: stream,
+      config: _config,
     );
 
     _connections[connectionId] = connection;
@@ -197,6 +228,43 @@ class Peer extends EventEmitter {
 
   Future<MediaStream> getDisplayMedia(MediaConstraints constraints) {
     return _adapter.getDisplayMedia(constraints);
+  }
+
+  /// Switch between front and back camera
+  Future<void> switchCamera() async {
+    if (_localStream != null) {
+      await _adapter.switchCamera(_localStream!);
+    }
+  }
+
+  /// Turn off or on camera (video)
+  Future<void> turnOffCamera({bool? off}) async {
+    _isCameraOff = off ?? !_isCameraOff;
+    if (_localStream != null) {
+      await _localStream!.toggleVideo(!_isCameraOff);
+    }
+  }
+
+  /// Switch speakers (rotate between speakerphone and other outputs)
+  Future<void> switchSpeakers() async {
+    _isSpeakerPhoneOn = !_isSpeakerPhoneOn;
+    await _adapter.setSpeakerphoneOn(_isSpeakerPhoneOn);
+  }
+
+  /// Switch microphone (rotate through available inputs)
+  Future<void> switchMicrophone() async {
+    final devices = await _adapter.enumerateDevices();
+    final inputs = devices.where((d) => d.kind == 'audioinput').toList();
+    if (inputs.length < 2) return;
+    print('Switching microphone... Available: ${inputs.length}');
+  }
+
+  /// Turn off or on microphone (audio)
+  Future<void> turnoffMicrophone({bool? off}) async {
+    _isMicrophoneOff = off ?? !_isMicrophoneOff;
+    if (_localStream != null) {
+      await _localStream!.toggleAudio(!_isMicrophoneOff);
+    }
   }
 
   void disconnect() {

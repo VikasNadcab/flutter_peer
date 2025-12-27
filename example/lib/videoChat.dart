@@ -38,6 +38,18 @@ class _VideochatState extends State<Videochat> {
     setState(() => activeCall = call);
 
     call.onStream((stream) => setState(() {}));
+    call.onRemoteStreamChange((change) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Remote audio: ${change.audio ? "ON" : "OFF"}, '
+            'Remote video: ${change.video ? "ON" : "OFF"}',
+          ),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+      setState(() {});
+    });
     call.onClose(() => setState(() => activeCall = null));
   }
 
@@ -70,7 +82,7 @@ class _VideochatState extends State<Videochat> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                Text(
+                SelectableText(
                   'My ID: ${myId ?? "..."}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -110,9 +122,49 @@ class _VideochatState extends State<Videochat> {
             ),
           ),
           if (activeCall != null)
-            IconButton(
-              icon: const Icon(Icons.call_end, color: Colors.red, size: 40),
-              onPressed: () => activeCall?.close(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.switch_camera, size: 30),
+                    onPressed: () => activeCall?.switchCamera(),
+                    tooltip: 'Switch Camera',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.videocam_off, size: 30),
+                    onPressed: () => activeCall?.turnOffCamera(),
+                    tooltip: 'Toggle Camera',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.volume_up, size: 30),
+                    onPressed: () => activeCall?.switchSpeakers(),
+                    tooltip: 'Switch Speakers',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.mic_off, size: 30),
+                    onPressed: () => activeCall?.turnoffMicrophone(),
+                    tooltip: 'Toggle Mic',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.mic_external_on, size: 30),
+                    onPressed: () => activeCall?.switchMicrophone(),
+                    tooltip: 'Switch Mic',
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.call_end,
+                      color: Colors.red,
+                      size: 40,
+                    ),
+                    onPressed: () => activeCall?.close(),
+                    tooltip: 'Hang up',
+                  ),
+                ],
+              ),
             ),
         ],
       ),

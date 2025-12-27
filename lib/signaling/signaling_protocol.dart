@@ -10,6 +10,7 @@ enum SignalingMessageType {
   candidate,
   leave,
   expire,
+  mediaState,
 }
 
 class SignalingMessage {

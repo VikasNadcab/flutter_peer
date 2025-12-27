@@ -50,6 +50,54 @@ abstract class PeerConnection {
   Stream<MediaStream> get onTrack;
 }
 
+/// Media stream
+abstract class MediaStream {
+  String get id;
+
+  /// Underlying native stream (e.g. RTCVideoRenderer.srcObject)
+  dynamic get srcObject;
+
+  List<MediaTrack> getTracks();
+
+  Future<void> dispose();
+
+  /// Toggle audio track
+  Future<void> toggleAudio(bool enabled);
+
+  /// Toggle video track
+  Future<void> toggleVideo(bool enabled);
+}
+
+/// Media device info
+class MediaDeviceInfo {
+  final String deviceId;
+  final String label;
+  final String kind;
+  final String groupId;
+
+  const MediaDeviceInfo({
+    required this.deviceId,
+    required this.label,
+    required this.kind,
+    required this.groupId,
+  });
+}
+
+/// Media constraints
+class MediaConstraints {
+  final bool audio;
+  final bool video;
+  final String? audioInputId;
+  final String? videoInputId;
+
+  const MediaConstraints({
+    this.audio = true,
+    this.video = true,
+    this.audioInputId,
+    this.videoInputId,
+  });
+}
+
 /// WebRTC adapter contract
 abstract class WebRtcAdapter {
   /// Create a peer connection
@@ -69,6 +117,18 @@ abstract class WebRtcAdapter {
 
   /// Get display media (screen sharing)
   Future<MediaStream> getDisplayMedia(MediaConstraints constraints);
+
+  /// Switch camera
+  Future<void> switchCamera(MediaStream stream);
+
+  /// Get available media devices
+  Future<List<MediaDeviceInfo>> enumerateDevices();
+
+  /// Set speakerphone on/off (Mobile specific)
+  Future<void> setSpeakerphoneOn(bool enable);
+
+  /// Set audio output device (Web/Desktop specific)
+  Future<void> setAudioOutput(String deviceId);
 
   /// Dispose adapter
   Future<void> dispose();
@@ -134,18 +194,6 @@ enum SignalingState {
   closed,
 }
 
-/// Media stream
-abstract class MediaStream {
-  String get id;
-
-  /// Underlying native stream (e.g. RTCVideoRenderer.srcObject)
-  dynamic get srcObject;
-
-  List<MediaTrack> getTracks();
-
-  Future<void> dispose();
-}
-
 /// Media track
 abstract class MediaTrack {
   String get id;
@@ -155,14 +203,6 @@ abstract class MediaTrack {
   Future<void> setEnabled(bool enabled);
 
   Future<void> stop();
-}
-
-/// Media constraints
-class MediaConstraints {
-  final bool audio;
-  final bool video;
-
-  const MediaConstraints({this.audio = true, this.video = true});
 }
 
 /// Data channel
