@@ -1,4 +1,4 @@
-## 0.0.1
+## 0.0.2
 
 * Initial release of `flutter_peer`.
 * Support for P2P data connections and media streams (audio/video).
