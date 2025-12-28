@@ -38,4 +38,4 @@ flutter:
         pluginClass: FlutterPeerPlugin
       web:
         pluginClass: FlutterPeerWeb
-        fileName: flutter_peer_web.dart
+        fileName: peer_web.dart
