@@ -256,7 +256,7 @@ class Peer extends EventEmitter {
     final devices = await _adapter.enumerateDevices();
     final inputs = devices.where((d) => d.kind == 'audioinput').toList();
     if (inputs.length < 2) return;
-    print('Switching microphone... Available: ${inputs.length}');
+    // print('Switching microphone... Available: ${inputs.length}');
   }
 
   /// Turn off or on microphone (audio)

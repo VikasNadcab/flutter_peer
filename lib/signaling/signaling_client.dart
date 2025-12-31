@@ -41,7 +41,7 @@ class SignalingClient extends EventEmitter {
       '$protocol://$host$portPart${normalizedPath}peerjs?key=$key&id=${id ?? ""}&token=$randomToken',
     );
 
-    print('Signaling connecting to: $url');
+    // print('Signaling connecting to: $url');
     try {
       _channel = WebSocketChannel.connect(url);
       _connected = true;
@@ -58,7 +58,7 @@ class SignalingClient extends EventEmitter {
           final message = SignalingMessage.fromJson(json);
           _handleMessage(message);
         } catch (e) {
-          print('Error parsing signaling message: $e');
+          // print('Error parsing signaling message: $e');
         }
       },
       onDone: () => _handleDisconnect(),

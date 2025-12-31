@@ -70,7 +70,7 @@ class MediaConnection extends BaseConnection {
     // This requires re-initializing the local stream with the new deviceId
     // and replacing the track in the peer connection.
     // For now we just print for debugging as the adapter doesn't support track replacement yet.
-    print('Switching microphone... Available: ${inputs.length}');
+    // print('Switching microphone... Available: ${inputs.length}');
   }
 
   /// Turn off or on microphone (audio)
@@ -116,7 +116,7 @@ class MediaConnection extends BaseConnection {
     );
 
     pc!.onIceCandidate.listen((candidate) {
-      print('Sending ICE candidate to ${peerId}');
+      // print('Sending ICE candidate to ${peerId}');
       sendSignal(SignalingMessageType.candidate, {
         'candidate': candidate.candidate,
         'sdpMid': candidate.sdpMid,
@@ -125,9 +125,9 @@ class MediaConnection extends BaseConnection {
     });
 
     pc!.onTrack.listen((stream) {
-      print(
-        'Received remote stream from $peerId, tracks: ${stream.getTracks().length}',
-      );
+      // print(
+      //   'Received remote stream from $peerId, tracks: ${stream.getTracks().length}',
+      // );
 
       // If we already have this stream, don't replace it, just notify
       if (remoteStream?.id == stream.id) {
@@ -142,7 +142,7 @@ class MediaConnection extends BaseConnection {
 
     // Add local stream if present
     if (localStream != null) {
-      print('Adding local stream to peer connection');
+      // print('Adding local stream to peer connection');
       await pc!.addStream(localStream!);
     }
   }

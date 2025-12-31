@@ -1,6 +1,6 @@
 name: flutter_peer
 description: A Flutter plugin that simplifies peer-to-peer communication using WebRTC, supporting signaling, media streams, and real-time events.
-version: 0.0.2
+version: 0.0.3
 
 homepage: https://github.com/vikassharmanaini/flutter_peer
 repository: https://github.com/vikassharmanaini/flutter_peer

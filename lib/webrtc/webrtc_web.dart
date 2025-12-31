@@ -149,9 +149,9 @@ class WebPeerConnection implements PeerConnection {
     };
 
     rtcConnection.onTrack = (rtc.RTCTrackEvent track) async {
-      print(
-        'onTrack (web): ${track.track.kind} with ${track.streams.length} streams',
-      );
+      // print(
+      //   'onTrack (web): ${track.track.kind} with ${track.streams.length} streams',
+      // );
       if (_trackController.isClosed) return;
 
       if (track.streams.isNotEmpty) {

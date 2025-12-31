@@ -108,7 +108,7 @@ class DataConnection extends BaseConnection {
         if (isOfferer ||
             pc != null &&
                 (await pc!.getSignalingState()) != SignalingState.stable) {
-          print("Ignoring redundant offer or offer during active negotiation.");
+          // print("Ignoring redundant offer or offer during active negotiation.");
           return;
         }
         if (pc == null) await initialize();
